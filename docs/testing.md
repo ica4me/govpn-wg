@@ -8,7 +8,7 @@ Dokumen ini membedakan pemeriksaan kode/unit test, integrasi kernel dalam namesp
 cd /root/govpn-wg
 go test -count=1 ./...
 go vet ./...
-bash -n scripts/install.sh scripts/uninstall.sh
+bash -n scripts/install.sh scripts/uninstall.sh deploy/cloud-init-guard.sh
 ```
 
 Unit test biasa memakai fake untuk sebagian besar operasi WireGuard/firewall. Hasil suite lama tidak boleh dianggap sebagai hasil eksekusi ulang setelah setiap perubahan. Pembaruan dokumentasi ini tidak menjalankan ulang suite, installer, atau deployment; hasil kernel di bawah berasal dari eksekusi yang dilaporkan pada sesi verifikasi ini.
@@ -63,6 +63,12 @@ Bukti tersebut hanya menunjukkan konektivitas klien→hub saat itu. Ping ke alam
 
 **Status akhir sesi verifikasi: server tetap dihentikan; tidak ada deployment baru.** Menghentikan daemon sendiri tidak otomatis menghapus interface dan rule yang sudah ada. Jangan menafsirkan status ini sebagai persetujuan untuk start ulang di produksi.
 
+### Uji di server Debian 13 nyata (2026-11-16)
+
+- `deploy/cloud-init-guard.sh` dipasang di server. Lalu interface WireGuard sementara (`wg-s999999`) dibuat dan dihapus di jaringan **host** dengan timer pembersih otomatis. `udevadm test` menunjukkan hook cloud-init tidak lagi terpanggil untuk interface itu, dan `ip -4 route show default` **identik** sebelum dan sesudah create/delete.
+- `TestKernelIsolation` dijalankan di server (di dalam `unshare --net`): **PASS**, termasuk pengecekan IPv6 mati di interface tunnel.
+- Service `govpn-wg` tetap dihentikan; uji service penuh + client nyata belum dilakukan ulang.
+
 ### Insiden cloud-init / hotplug
 
 Bukti investigasi menunjukkan penambahan/penghapusan interface WireGuard virtual memanggil `/usr/lib/cloud-init/hook-hotplug`, kemudian terlihat DHCP berulang pada `ens3`. Hubungan ini belum membuktikan cloud-init sebagai penyebab tunggal hilangnya akses server. Risiko operasional belum dinyatakan selesai.
@@ -80,7 +86,7 @@ Sebelum operasi interface pada host cloud, siapkan konsol out-of-band dan cadang
 | Klien→LAN site, termasuk exposure kosong/terbatas | belum |
 | Full tunnel: egress internet, NAT publik, DROP tujuan non-publik | belum |
 | DNS efektif split/full pada perangkat klien nyata | belum |
-| Pemblokiran kebocoran IPv6 klien full tunnel (`::/0`, peer hub hanya IPv4 /32) | belum |
+| IPv6 dimatikan per interface tunnel; `::/0` tidak pernah ditulis | interface hub: diuji di namespace; perangkat klien nyata: belum |
 | IPv6 gateway site full tunnel (`route.sh` hanya memasang policy IPv4) | belum |
 | Windows/mobile/QR pada perangkat nyata | belum |
 | Clamp MSS pada trafik nyata, PMTU, fragmentasi, throughput/beban | belum |
