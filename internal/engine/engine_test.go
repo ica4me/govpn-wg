@@ -52,7 +52,7 @@ func TestSiteLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.ID != "site-a" || a.Iface != "wg-s1" || b.Iface != "wg-s2" {
+	if a.ID != "site-a" || a.Iface != "wg-s-site-a" || b.Iface != "wg-s-site-b" {
 		t.Fatalf("ids/ifaces: %s %s %s", a.ID, a.Iface, b.Iface)
 	}
 	if a.Port != 3478 || b.Port != 3480 {
@@ -64,24 +64,24 @@ func TestSiteLifecycle(t *testing.T) {
 	if a.MTU != 1360 {
 		t.Fatal("default mtu")
 	}
-	spec := r.wg.Ifaces["wg-s1"]
+	spec := r.wg.Ifaces["wg-s-site-a"]
 	if len(spec.Peers) != 1 || len(spec.Routes) != 1 || spec.Routes[0].String() != "192.168.10.0/24" {
 		t.Fatalf("spec: %+v", spec)
 	}
 	rules := r.fw.Last
 	for _, want := range []string{
-		"-A GOVPN-FWD -i wg-s2 -s 10.20.0.0/16 -d 192.168.10.0/24",
-		"-A GOVPN-FWD -i wg-s1 -s 192.168.10.0/24 -d 10.10.9.0/24",
-		"-A GOVPN-MSS -o wg-s1 -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1321:65535 -j TCPMSS --set-mss 1320",
-		"-A GOVPN-FWD -i wg-s1 -j DROP",
-		"-A GOVPN-FWD -o wg-s2 -j DROP",
+		"-A GOVPN-FWD -i wg-s-site-b -s 10.20.0.0/16 -d 192.168.10.0/24",
+		"-A GOVPN-FWD -i wg-s-site-a -s 192.168.10.0/24 -d 10.10.9.0/24",
+		"-A GOVPN-MSS -o wg-s-site-a -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1321:65535 -j TCPMSS --set-mss 1320",
+		"-A GOVPN-FWD -i wg-s-site-a -j DROP",
+		"-A GOVPN-FWD -o wg-s-site-b -j DROP",
 	} {
 		if !strings.Contains(rules, want) {
 			t.Fatalf("missing rule %q in\n%s", want, rules)
 		}
 	}
 	// site-a has not granted anything to site-b, so no a->b rule.
-	if strings.Contains(rules, "-i wg-s1 -s 192.168.10.0/24 -d 10.20.0.0/16") {
+	if strings.Contains(rules, "-i wg-s-site-a -s 192.168.10.0/24 -d 10.20.0.0/16") {
 		t.Fatal("unexpected reverse grant")
 	}
 	// A's peer config must route B's LAN back (B may reach A).
@@ -102,10 +102,10 @@ func TestSiteLifecycle(t *testing.T) {
 	if _, err := r.e.UpdateSite("site-a", engine.SiteInput{TunnelMode: ptr("full"), AllowAllSubnets: ptr(false), ExposedSubnets: ptr([]string{"192.168.10.0/25"})}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(r.fw.Last, "-i wg-s2 -s 10.20.0.0/16 -d 192.168.10.0/25") || strings.Contains(r.fw.Last, "-d 192.168.10.0/24 -m comment --comment \"site site-b") {
+	if !strings.Contains(r.fw.Last, "-i wg-s-site-b -s 10.20.0.0/16 -d 192.168.10.0/25") || strings.Contains(r.fw.Last, "-d 192.168.10.0/24 -m comment --comment \"site site-b") {
 		t.Fatalf("exposure not narrowed:\n%s", r.fw.Last)
 	}
-	if !strings.Contains(r.fw.Last, "-o ens3 -m comment --comment \"full-tunnel wg-s1\" -j ACCEPT") {
+	if !strings.Contains(r.fw.Last, "-o ens3 -m comment --comment \"full-tunnel wg-s-site-a\" -j ACCEPT") {
 		t.Fatal("full tunnel egress missing")
 	}
 	if _, err := r.e.UpdateSite("site-a", engine.SiteInput{ExposedSubnets: ptr([]string{"10.99.0.0/24"})}); err == nil {
@@ -116,8 +116,8 @@ func TestSiteLifecycle(t *testing.T) {
 	if err := r.e.DeleteSite("site-a"); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := r.wg.Ifaces["wg-s1"]; ok {
-		t.Fatal("wg-s1 still present")
+	if _, ok := r.wg.Ifaces["wg-s-site-a"]; ok {
+		t.Fatal("wg-s-site-a still present")
 	}
 	vb, _ := r.e.GetSite("site-b")
 	if len(vb.AllowedTargetSites) != 0 {
@@ -138,7 +138,7 @@ func TestClients(t *testing.T) {
 		t.Fatalf("client %+v", c)
 	}
 	g := r.e.ListGroups()[0]
-	if g.Iface != "wg-c1" {
+	if g.Iface != "wg-c-default" {
 		t.Fatal(g.Iface)
 	}
 	v, _ := r.e.GetClient("budi")
@@ -148,7 +148,7 @@ func TestClients(t *testing.T) {
 			t.Fatalf("allowed %v missing %s", v.AllowedIPs, w)
 		}
 	}
-	if !strings.Contains(r.fw.Last, "-i wg-c1 -s "+c.Address+"/32 -d 192.168.50.0/24") {
+	if !strings.Contains(r.fw.Last, "-i wg-c-default -s "+c.Address+"/32 -d 192.168.50.0/24") {
 		t.Fatalf("client grant missing\n%s", r.fw.Last)
 	}
 	c2, err := r.e.CreateClient(engine.ClientInput{Username: ptr("sari"), TunnelMode: ptr("full")})
@@ -171,7 +171,7 @@ func TestClients(t *testing.T) {
 	if _, err := r.e.UpdateClient("budi", engine.ClientInput{Enabled: ptr(false)}); err != nil {
 		t.Fatal(err)
 	}
-	if n := len(r.wg.Ifaces["wg-c1"].Peers); n != 1 {
+	if n := len(r.wg.Ifaces["wg-c-default"].Peers); n != 1 {
 		t.Fatalf("disabled client still a peer (%d peers)", n)
 	}
 	if err := r.e.DeleteGroup("default"); engine.StatusOf(err) != 409 {

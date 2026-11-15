@@ -2,8 +2,8 @@
 
 Engine VPN WireGuard berbasis Go untuk Linux, dikendalikan lewat REST API (JSON + JWT). Tanpa UI. Gratis dan open source untuk pemakaian individu.
 
-- **VPN Hub / Site-to-Site** — tiap site (kantor/cabang) dapat interface WireGuard sendiri (`wg-s1`, `wg-s2`, …).
-- **Client-to-Site** — client (laptop/HP) masuk ke *group*; satu group = satu interface (`wg-c1`, …).
+- **VPN Hub / Site-to-Site** — tiap site (kantor/cabang) dapat interface WireGuard sendiri yang diberi nama dari nama site (`Kantor Pusat` → `wg-s-kantor-pus`).
+- **Client-to-Site** — client (laptop/HP) masuk ke *group*; satu group = satu interface (`wg-c-default`, …). Client bisa diizinkan ke satu atau banyak site, dan secara default boleh mengakses LAN di belakang server.
 - Subnet tunnel `/24` acak dari `172.31.201.0`–`172.31.250.0`, dicek agar tidak bentrok.
 - Akses diatur per site/client dengan iptables. Defaultnya ditolak, kecuali diberi izin.
 - Config client default **split-tunnel**, jadi internet client tetap lewat jalur aslinya. Server juga sudah menyiapkan NAT internet, sehingga client bisa pindah ke **full-tunnel** cukup dengan mengubah `.conf`-nya sendiri.

@@ -32,7 +32,7 @@ func TestAllClientsGetInternetRegardlessOfMode(t *testing.T) {
 	rules := r.fw.Last
 	for _, c := range []struct{ user, addr string }{{"budi", split.Address}, {"sari", full.Address}} {
 		src := c.addr + "/32"
-		accept := fmt.Sprintf(`-A GOVPN-FWD -i wg-c1 -s %s -o ens3 -m comment --comment "full-tunnel wg-c1" -j ACCEPT`, src)
+		accept := fmt.Sprintf(`-A GOVPN-FWD -i wg-c-default -s %s -o ens3 -m comment --comment "full-tunnel wg-c-default" -j ACCEPT`, src)
 		nat := fmt.Sprintf("-A GOVPN-POST -s %s -o ens3 -j MASQUERADE", src)
 		for _, want := range []string{accept, nat} {
 			if !strings.Contains(rules, want) {
@@ -42,11 +42,11 @@ func TestAllClientsGetInternetRegardlessOfMode(t *testing.T) {
 	}
 
 	// Non-public destinations stay denied by default for the split client...
-	drop := fmt.Sprintf("-A GOVPN-FWD -i wg-c1 -s %s -d 192.168.0.0/16 -j DROP", split.Address+"/32")
+	drop := fmt.Sprintf("-A GOVPN-FWD -i wg-c-default -s %s -d 192.168.0.0/16 -j DROP", split.Address+"/32")
 	// ...while the explicit site and server-LAN grants are still rendered
 	// before that drop, so private access is unchanged.
-	grant := fmt.Sprintf(`-A GOVPN-FWD -i wg-c1 -s %s -d 192.168.50.0/24 -m comment --comment "client budi -> sites" -j ACCEPT`, split.Address+"/32")
-	lan := fmt.Sprintf(`-A GOVPN-FWD -i wg-c1 -s %s -d 10.10.9.0/24 -m comment --comment "client budi -> server lan" -j ACCEPT`, split.Address+"/32")
+	grant := fmt.Sprintf(`-A GOVPN-FWD -i wg-c-default -s %s -d 192.168.50.0/24 -m comment --comment "client budi -> sites" -j ACCEPT`, split.Address+"/32")
+	lan := fmt.Sprintf(`-A GOVPN-FWD -i wg-c-default -s %s -d 10.10.9.0/24 -m comment --comment "client budi -> server lan" -j ACCEPT`, split.Address+"/32")
 	for _, want := range []string{drop, grant, lan} {
 		if !strings.Contains(rules, want) {
 			t.Fatalf("missing rule %q:\n%s", want, rules)

@@ -78,3 +78,26 @@ func TestKeys(t *testing.T) {
 		t.Fatal("public key mismatch")
 	}
 }
+
+func TestNamedIface(t *testing.T) {
+	taken := map[string]bool{}
+	f := func(n string) bool { return taken[n] }
+	cases := []struct{ slug, want string }{
+		{"kantor-pusat", "wg-s-kantor-pus"}, // 15 bytes exactly
+		{"site-a", "wg-s-site-a"},
+		{"a-b-c-d-e-f-g", "wg-s-a-b-c-d-e"}, // trailing dash trimmed
+	}
+	for _, c := range cases {
+		if got := NamedIface("wg-s-", c.slug, 15, f); got != c.want || len(got) > 15 {
+			t.Fatalf("%s: got %q want %q", c.slug, got, c.want)
+		}
+	}
+	taken["wg-s-kantor-pus"] = true
+	if got := NamedIface("wg-s-", "kantor-pusat-baru", 15, f); got != "wg-s-kantor-pu2" {
+		t.Fatalf("collision: got %q", got)
+	}
+	taken["wg-s-kantor-pu2"] = true
+	if got := NamedIface("wg-s-", "kantor-pusat-x", 15, f); got != "wg-s-kantor-pu3" {
+		t.Fatalf("collision 2: got %q", got)
+	}
+}

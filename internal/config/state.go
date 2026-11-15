@@ -16,7 +16,10 @@ import (
 const StateVersion = 1
 
 // ownedIfaceRe matches the only interface names the engine may manage.
-var ownedIfaceRe = regexp.MustCompile(`^wg-[sc][0-9]{1,11}$`)
+// Legacy numbered names (wg-s1) or named ones (wg-s-<slug, max 10 chars>).
+const OwnedIfacePattern = `^wg-[sc]([0-9]{1,11}|-[a-z0-9]([a-z0-9-]{0,8}[a-z0-9])?)$`
+
+var ownedIfaceRe = regexp.MustCompile(OwnedIfacePattern)
 
 // Tunnel modes.
 const (

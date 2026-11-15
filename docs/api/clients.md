@@ -2,7 +2,7 @@
 
 *Client* adalah perangkat perorangan (laptop, HP, PC) yang tersambung ke hub. Setiap client:
 
-- masuk ke satu **group**, yaitu satu interface `wg-cN` yang dipakai bersama. Defaultnya group `default`;
+- masuk ke satu **group**, yaitu satu interface `wg-c-<nama group>` (misalnya `wg-c-default`) yang dipakai bersama. Defaultnya group `default`;
 - mendapat satu alamat `/32` dari subnet group, mulai `.2`;
 - mendapat keypair dan PSK yang **dibuat oleh server**;
 - secara default memakai config **split-tunnel**: hanya subnet yang diizinkan yang lewat VPN, sedangkan internet tetap lewat jalur asli client.
@@ -12,6 +12,14 @@
 2. Admin mengirim `"tunnel_mode": "full"`, sehingga config yang diunduh sudah dalam mode full.
 
 Walaupun memakai full tunnel, client tetap **tidak bisa** mengakses alamat privat (LAN site atau server LAN) tanpa izin `target_sites` / `allow_server_lan`.
+
+### Model akses
+
+- **LAN di belakang server:** defaultnya **boleh** (`allow_server_lan: true`). Isi `false` untuk client yang tidak boleh mengaksesnya.
+- **Site:** client cuma bisa ke site yang ada di `target_sites`. Satu client boleh ke banyak site, misalnya `["site-a", "site-b"]`. Daftarnya bisa ditambah atau dihapus belakangan lewat `PUT`.
+- Site yang tidak ada di daftar **diblok di firewall hub**, walaupun client menambah subnetnya sendiri ke `AllowedIPs`.
+- Client tidak tersambung ke interface site. Client masuk lewat interface group, lalu hub yang meneruskan ke interface site tujuan. Satu `.conf` cukup untuk akses ke semua site yang diizinkan.
+- Setiap izin berubah, `.conf`/QR/script yang diunduh ikut ter-update. Client tinggal unduh dan import ulang. Pencabutan izin langsung berlaku di hub tanpa perlu import ulang.
 
 Semua endpoint wajib memakai header `Authorization: Bearer <token>`.
 
@@ -33,7 +41,7 @@ Semua endpoint wajib memakai header `Authorization: Bearer <token>`.
 | `username` | string | **wajib** | – | 1–64 karakter `A-Z a-z 0-9 _ . @ -`, harus unik. ID = slug(username). **Tidak bisa diubah** |
 | `group` | string | opsional | `"default"` | ID group. Hanya bisa diisi saat `POST`; di `PUT` menghasilkan `422`. Untuk pindah group, hapus lalu buat ulang client |
 | `target_sites` | string[] | opsional | `[]` | ID site yang boleh diakses. Yang bisa diakses hanya subnet yang diekspos site tersebut |
-| `allow_server_lan` | bool | opsional | `false` | boleh mengakses perangkat di `GOVPN_SERVER_LAN` |
+| `allow_server_lan` | bool | opsional | `true` | boleh mengakses perangkat di `GOVPN_SERVER_LAN` (subnet di belakang server). Kirim `false` untuk mencabut |
 | `tunnel_mode` | string | opsional | `"split"` | `"split"` atau `"full"`. Field ini hanya menentukan isi config yang diunduh; izin internet di server tetap terbuka untuk keduanya |
 | `dns` | string[] | opsional | `GOVPN_DNS` (`["1.1.1.1"]`) | maksimal 4 alamat IP. Lihat [aturan DNS](#aturan-dns) |
 | `enabled` | bool | opsional | `true` | `false` = peer dilepas dan client tidak bisa tersambung. Data client tetap disimpan |
@@ -46,7 +54,7 @@ Dipakai oleh `GET`, `POST` (`201`), dan `PUT` (`200`).
 | Field | Arti |
 |---|---|
 | `id`, `username` | |
-| `group`, `iface` | group dan interface hub (`wg-cN`) |
+| `group`, `iface` | group dan interface hub (`wg-c-<nama group>`) |
 | `address` | IP client di tunnel (`/32`) |
 | `public_key` | public key client |
 | `target_sites`, `allow_server_lan` | izin akses |
@@ -71,7 +79,7 @@ Private key dan PSK **tidak pernah** muncul di response.
 
 ## `POST /clients` — buat client
 
-Minimal (masuk group `default`, split tunnel, tanpa akses site):
+Minimal (masuk group `default`, split tunnel, boleh ke LAN server, tanpa akses site):
 
 ```bash
 curl -s -X POST $API/clients -H "$AUTH" -d '{"username": "andi"}'
@@ -108,7 +116,7 @@ Response `201`:
   "id": "sari-it",
   "username": "sari.it",
   "group": "tim-it",
-  "iface": "wg-c1",
+  "iface": "wg-c-tim-it",
   "address": "172.31.250.2",
   "public_key": "94Kck7+//Yxo1z6uAuKPPf8OEAz6jkOps1Rsxjx4dVI=",
   "target_sites": ["kantor-pusat", "cabang-bandung"],

@@ -24,14 +24,16 @@ import (
 	"github.com/ica4me/govpn-wg/internal/wireguard"
 )
 
-// Interface name prefixes. Kernel limit is 15 bytes; "wg-s" + up to 11 digits.
+// Interface name prefixes. Kernel limit is 15 bytes. New interfaces are
+// named after the site/group ("wg-s-kantor-pus", "wg-c-default"); legacy
+// numbered names ("wg-s1") from older versions stay valid and are never renamed.
 const (
 	SitePrefix   = "wg-s"
 	GroupPrefix  = "wg-c"
 	DefaultGroup = "default"
 )
 
-var ownedRe = regexp.MustCompile(`^wg-[sc][0-9]{1,11}$`)
+var ownedRe = regexp.MustCompile(config.OwnedIfacePattern)
 
 // Owned reports whether an interface name belongs to govpn-wg.
 func Owned(name string) bool { return ownedRe.MatchString(name) }

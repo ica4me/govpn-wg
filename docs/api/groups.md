@@ -1,6 +1,6 @@
 # API — Group Client
 
-Satu *group* adalah satu interface WireGuard di hub (`wg-cN`) dengan subnet `/24` dan port UDP sendiri. Interface itu dipakai bersama oleh banyak client.
+Satu *group* adalah satu interface WireGuard di hub (`wg-c-<nama group>`, misalnya `wg-c-tim-it`) dengan subnet `/24` dan port UDP sendiri. Interface itu dipakai bersama oleh banyak client.
 
 - Group `default` dibuat otomatis saat client pertama dibuat tanpa field `group`.
 - Group berguna untuk memisahkan client ke subnet, port, atau MTU yang berbeda, misalnya `Tim IT` dan `Vendor`.
@@ -28,7 +28,7 @@ Semua endpoint wajib memakai header `Authorization: Bearer <token>`.
 | Field | Arti |
 |---|---|
 | `id`, `name` | |
-| `iface` | interface di hub (`wg-cN`) |
+| `iface` | interface di hub (`wg-c-<nama group>`, misalnya `wg-c-tim-it`) |
 | `subnet` | subnet tunnel group |
 | `port`, `mtu` | |
 | `server_public_key` | public key hub untuk group ini |
@@ -47,7 +47,7 @@ Response `201`:
 {
   "id": "tim-it",
   "name": "Tim IT",
-  "iface": "wg-c1",
+  "iface": "wg-c-tim-it",
   "subnet": "172.31.250.0/24",
   "port": 3479,
   "mtu": 1360,

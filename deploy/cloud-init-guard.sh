@@ -18,21 +18,33 @@ python3 - "$SOURCE" "$RULE" <<'PY'
 import os,sys,tempfile
 src,dst=sys.argv[1:]
 text=open(src).read()
+EXCL='KERNEL!="wg-s*", KERNEL!="wg-c*", KERNEL!="govpn", KERNEL!="wg-hub", '
+# v1 excluded only numbered names (wg-s[0-9]*); upgrade it in place so named
+# interfaces (wg-s-kantor) are excluded too.
+OLD='KERNEL!="wg-s[0-9]*", KERNEL!="wg-c[0-9]*", KERNEL!="govpn", KERNEL!="wg-hub", '
 if '# GoVPN hotplug exclusions' in text:
-    sys.exit(0)
+    if OLD not in text:
+        sys.exit(0)
+    out_text=text.replace(OLD,EXCL)
+    upgrade=True
+else:
+    upgrade=False
 # Scope only the exact known cloud-init RUN helper; unknown variants must
 # be inspected instead of silently clearing other udev RUN commands.
-lines=text.splitlines(keepends=True)
-found=False
-out=[]
-for line in lines:
-    if 'RUN+=' in line and '/usr/lib/cloud-init/hook-hotplug' in line and not line.lstrip().startswith('#'):
-        found=True
-        out.append('# GoVPN hotplug exclusions: virtual tunnels are not cloud NICs\n')
-        line='KERNEL!="wg-s[0-9]*", KERNEL!="wg-c[0-9]*", KERNEL!="govpn", KERNEL!="wg-hub", '+line
-    out.append(line)
-if not found:
-    raise SystemExit('Unknown cloud-init hotplug rule format; inspect before creating tunnels')
+if upgrade:
+    out=[out_text]
+else:
+    lines=text.splitlines(keepends=True)
+    found=False
+    out=[]
+    for line in lines:
+        if 'RUN+=' in line and '/usr/lib/cloud-init/hook-hotplug' in line and not line.lstrip().startswith('#'):
+            found=True
+            out.append('# GoVPN hotplug exclusions: virtual tunnels are not cloud NICs\n')
+            line=EXCL+line
+        out.append(line)
+    if not found:
+        raise SystemExit('Unknown cloud-init hotplug rule format; inspect before creating tunnels')
 os.makedirs(os.path.dirname(dst),exist_ok=True)
 if os.path.exists(dst):
     backup=dst+'.govpn-original'

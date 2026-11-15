@@ -124,3 +124,37 @@ func NextHost(subnet netip.Prefix, first int, taken map[string]bool) (netip.Addr
 	}
 	return netip.Addr{}, fmt.Errorf("subnet %s is full", subnet)
 }
+
+// NamedIface builds prefix+slug truncated to max bytes, appending 2,3,... on
+// collision. The slug must already be [a-z0-9-]; trailing dashes are trimmed
+// so the result stays a valid owned name. Returns "" if nothing is free.
+func NamedIface(prefix, slug string, max int, taken func(string) bool) string {
+	room := max - len(prefix)
+	if room < 1 {
+		return ""
+	}
+	clip := func(s string, n int) string {
+		if len(s) > n {
+			s = s[:n]
+		}
+		return strings.Trim(s, "-")
+	}
+	base := clip(slug, room)
+	if base == "" {
+		base = "x"
+	}
+	if !taken(prefix + base) {
+		return prefix + base
+	}
+	for n := 2; n < 100000; n++ {
+		suf := strconv.Itoa(n)
+		if len(suf) >= room {
+			break
+		}
+		b := clip(slug, room-len(suf))
+		if name := prefix + b + suf; !taken(name) {
+			return name
+		}
+	}
+	return ""
+}

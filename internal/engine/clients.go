@@ -78,7 +78,8 @@ func (e *Engine) CreateClient(in ClientInput) (*config.Client, error) {
 			ID: config.Slug(*in.Username), Username: *in.Username, GroupID: g.ID, Address: addr.String(),
 			PrivateKey: keys.Private, PublicKey: keys.Public, PresharedKey: psk,
 			TunnelMode: config.ModeSplit, DNS: e.cfg.DNS, Enabled: true, TargetSites: []string{},
-			CreatedAt: now, UpdatedAt: now,
+			AllowServerLAN: true, // default: clients may reach the LANs behind the hub
+			CreatedAt:      now, UpdatedAt: now,
 		}
 		if c.ID == "" || st.Client(c.ID) != nil {
 			return conflict("client id %q already exists", c.ID)
@@ -211,7 +212,7 @@ func (e *Engine) newGroup(st *config.State, in GroupInput) (*config.Group, error
 		}
 		g.MTU = *in.MTU
 	}
-	if g.Iface, err = e.newIface(st, GroupPrefix); err != nil {
+	if g.Iface, err = e.newIface(st, GroupPrefix, g.ID); err != nil {
 		return nil, err
 	}
 	if g.Subnet, err = e.newSubnet(st, nil); err != nil {

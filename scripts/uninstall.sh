@@ -15,7 +15,7 @@ if [ -x "$PREFIX/govpn-wg" ]; then
   "$PREFIX/govpn-wg" teardown -config "$CONF" || true
 else
   # Fallback without the binary: owned links and chains only.
-  for l in $(ip -o link show type wireguard 2>/dev/null | awk -F': ' '{print $2}' | grep -E '^wg-[sc][0-9]+$'); do
+  for l in $(ip -o link show type wireguard 2>/dev/null | awk -F': ' '{print $2}' | grep -E '^wg-[sc]([0-9]+|-[a-z0-9-]+)$'); do
     ip link del "$l" || true
   done
   for spec in filter:FORWARD:GOVPN-FWD nat:POSTROUTING:GOVPN-POST mangle:FORWARD:GOVPN-MSS; do

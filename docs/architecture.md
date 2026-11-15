@@ -38,7 +38,7 @@ Engine menjalankan *reconcile* setiap 30 detik dan setiap menerima `SIGHUP`. Rec
 | Hub | `.1` di setiap subnet |
 | Site | `.2` |
 | Client | `.2` – `.254` di subnet group (maks. 253 per group) |
-| Nama interface | `wg-sN` (site), `wg-cN` (group) |
+| Nama interface | `wg-s-<nama site>` (site), `wg-c-<nama group>` (group): maksimal 10 karakter dari slug nama, ditambah angka kalau bentrok (`wg-s-kantor-pu2`). Batas kernel 15 karakter. Nama lama `wg-s1`/`wg-c1` dari versi sebelumnya tetap dikenali dan tidak diganti |
 | Port UDP | mulai `GOVPN_BASE_PORT` (3478); port yang sudah terpakai di host dilewati |
 | ID objek | slug dari nama: `"Kantor Pusat"` → `kantor-pusat`, `"sari.it"` → `sari-it` |
 

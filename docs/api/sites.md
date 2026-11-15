@@ -2,7 +2,7 @@
 
 *Site* adalah jaringan remote, misalnya kantor atau cabang, yang tersambung ke hub lewat sebuah **gateway** (Linux atau Windows). Setiap site mendapat:
 
-- interface WireGuard sendiri di hub (`wg-s1`, `wg-s2`, …);
+- interface WireGuard sendiri di hub yang namanya diambil dari nama site: `wg-s-` + maksimal 10 karakter slug (`Kantor Pusat` → `wg-s-kantor-pus`, `Cabang Bandung` → `wg-s-cabang-ban`). Kalau bentrok, ditambah angka (`wg-s-kantor-pu2`). Batas kernel Linux 15 karakter;
 - subnet tunnel `/24` acak, dengan hub di `.1` dan gateway site di `.2`;
 - port UDP sendiri;
 - keypair dan PSK yang **dibuat oleh server**.
@@ -50,7 +50,7 @@ Dipakai oleh `GET`, `POST` (`201`), dan `PUT` (`200`).
 | Field | Arti |
 |---|---|
 | `id`, `name` | ID (slug) dan nama tampilan |
-| `iface` | nama interface di hub (`wg-sN`) |
+| `iface` | nama interface di hub (`wg-s-<nama>`) |
 | `subnet` | subnet tunnel `/24` |
 | `hub_address` | alamat hub di tunnel (`.1`) |
 | `virtual_ip` | alamat gateway site di tunnel (`.2`) |
@@ -112,7 +112,7 @@ Response `201`:
 {
   "id": "cabang-bandung",
   "name": "Cabang Bandung",
-  "iface": "wg-s2",
+  "iface": "wg-s-cabang-ban",
   "subnet": "172.31.224.0/24",
   "hub_address": "172.31.224.1",
   "virtual_ip": "172.31.224.2",

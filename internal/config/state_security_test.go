@@ -58,3 +58,18 @@ func TestReplaceRejectsNullBeforeSort(t *testing.T) {
 		t.Fatal("null persisted")
 	}
 }
+
+func TestOwnedIfaceNames(t *testing.T) {
+	ok := []string{"wg-s1", "wg-c12", "wg-s-kantor-pus", "wg-c-default", "wg-s-a", "wg-s-kantor-pu2"}
+	bad := []string{"eth0", "wg-hub", "govpn", "wg-s-", "wg-s--x", "wg-s-x-", "wg-s-Kantor", "wg-s-kantor-pusa", "wg-x-a", "wg-s1-a"}
+	for _, n := range ok {
+		if !ownedIfaceRe.MatchString(n) || len(n) > 15 {
+			t.Errorf("%q should be owned", n)
+		}
+	}
+	for _, n := range bad {
+		if ownedIfaceRe.MatchString(n) {
+			t.Errorf("%q must not be owned", n)
+		}
+	}
+}

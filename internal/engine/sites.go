@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"net"
 	"net/netip"
 	"slices"
 	"time"
@@ -63,7 +64,7 @@ func (e *Engine) CreateSite(in SiteInput) (*config.Site, error) {
 		if err := e.applySiteInput(st, s, in, true); err != nil {
 			return err
 		}
-		if s.Iface, err = e.newIface(st, SitePrefix); err != nil {
+		if s.Iface, err = e.newIface(st, SitePrefix, s.ID); err != nil {
 			return err
 		}
 		if s.Subnet, err = e.newSubnet(st, s.LocalSubnets); err != nil {
@@ -223,8 +224,11 @@ func dedupe(list []string) []string {
 	return out
 }
 
-// newIface returns the next free wg-sN / wg-cN name.
-func (e *Engine) newIface(st *config.State, prefix string) (string, error) {
+// newIface returns a free interface name derived from the site/group ID:
+// prefix + "-" + up to 10 slug chars (kernel limit 15), with a numeric
+// suffix on collision ("wg-s-kantor-pus", "wg-s-kantor-p2"). Names already
+// present on the host are skipped so a foreign link is never adopted.
+func (e *Engine) newIface(st *config.State, prefix, id string) (string, error) {
 	taken := map[string]bool{}
 	for _, s := range st.Sites {
 		taken[s.Iface] = true
@@ -232,9 +236,15 @@ func (e *Engine) newIface(st *config.State, prefix string) (string, error) {
 	for _, g := range st.Groups {
 		taken[g.Iface] = true
 	}
-	name := wireguard.NextIfaceName(prefix, taken)
-	if !Owned(name) || len(name) > 15 {
-		return "", conflict("interface name space exhausted")
+	name := wireguard.NamedIface(prefix+"-", id, 15, func(n string) bool {
+		if taken[n] {
+			return true
+		}
+		_, err := net.InterfaceByName(n)
+		return err == nil
+	})
+	if name == "" || !Owned(name) {
+		return "", conflict("no free interface name for %q", id)
 	}
 	return name, nil
 }
