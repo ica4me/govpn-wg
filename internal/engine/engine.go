@@ -175,12 +175,18 @@ func (e *Engine) Loop(interval time.Duration, stop <-chan struct{}) {
 }
 
 func (e *Engine) applyLocked(st *config.State) error {
-	err := e.validate(st)
-	var specs []wireguard.IfaceSpec
-	var rules firewall.Ruleset
-	if err == nil {
-		specs, rules, err = e.build(st)
+	if err := e.validate(st); err != nil {
+		e.pubMu.Lock()
+		e.lastSync, e.lastErr = time.Now(), err.Error()
+		e.pubMu.Unlock()
+		return err
 	}
+	return e.applyValidatedLocked(st)
+}
+
+// applyValidatedLocked requires validation under e.mu immediately beforehand.
+func (e *Engine) applyValidatedLocked(st *config.State) error {
+	specs, rules, err := e.build(st)
 	// Firewall first: iptables accepts interface names that do not exist yet,
 	// so isolation is in place before a link comes up. If the firewall cannot
 	// be applied the kernel is left untouched (fail closed: the previous rule
@@ -215,7 +221,7 @@ func (e *Engine) mutate(fn func(st *config.State) error) error {
 	if err := e.validate(next); err != nil {
 		return err
 	}
-	if err := e.applyLocked(next); err != nil {
+	if err := e.applyValidatedLocked(next); err != nil {
 		e.log.Error("apply failed, restoring previous state", "err", err)
 		if rerr := e.applyLocked(prev); rerr != nil {
 			e.log.Error("restore failed", "err", rerr)

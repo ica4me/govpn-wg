@@ -180,13 +180,24 @@ func (k *Kernel) syncDevice(s IfaceSpec) error {
 	return nil
 }
 
+type routeOps struct {
+	list     func(netlink.Link, int) ([]netlink.Route, error)
+	add      func(*netlink.Route) error
+	del      func(*netlink.Route) error
+	filtered func(int, *netlink.Route, uint64) ([]netlink.Route, error)
+}
+
 func (k *Kernel) syncRoutes(link netlink.Link, want []netip.Prefix) error {
+	return syncRoutesWith(link, want, routeOps{netlink.RouteList, netlink.RouteAdd, netlink.RouteDel, netlink.RouteListFiltered})
+}
+
+func syncRoutesWith(link netlink.Link, want []netip.Prefix, ops routeOps) error {
 	for _, p := range want {
 		if !p.IsValid() || !p.Addr().Is4() || p.Bits() == 0 || p != p.Masked() {
 			return fmt.Errorf("unsafe hub route %s", p)
 		}
 	}
-	routes, err := netlink.RouteList(link, netlink.FAMILY_V4)
+	routes, err := ops.list(link, netlink.FAMILY_V4)
 	if err != nil {
 		return err
 	}
@@ -201,7 +212,7 @@ func (k *Kernel) syncRoutes(link netlink.Link, want []netip.Prefix) error {
 		if p, ok := prefixOf(r.Dst); ok && keep[p] {
 			continue
 		}
-		if err := netlink.RouteDel(&r); err != nil {
+		if err := ops.del(&r); err != nil {
 			return fmt.Errorf("remove route %s: %w", r.Dst, err)
 		}
 	}
@@ -214,11 +225,11 @@ func (k *Kernel) syncRoutes(link netlink.Link, want []netip.Prefix) error {
 		}
 		// Exclusive creation is atomic: a route installed concurrently must
 		// never be overwritten, even between inspection and the netlink call.
-		if err := netlink.RouteAdd(r); err != nil {
+		if err := ops.add(r); err != nil {
 			if !errors.Is(err, unix.EEXIST) {
 				return fmt.Errorf("route %s: %w", p, err)
 			}
-			cur, err := netlink.RouteListFiltered(netlink.FAMILY_V4, &netlink.Route{Dst: r.Dst, Table: unix.RT_TABLE_MAIN},
+			cur, err := ops.filtered(netlink.FAMILY_V4, &netlink.Route{Dst: r.Dst, Table: unix.RT_TABLE_MAIN},
 				netlink.RT_FILTER_DST|netlink.RT_FILTER_TABLE)
 			if err != nil {
 				return fmt.Errorf("inspect route %s: %w", p, err)

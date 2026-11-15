@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/term"
 
 	"github.com/ica4me/govpn-wg/internal/api"
@@ -62,6 +63,8 @@ func main() {
 		err = withEngine(*path, func(e *engine.Engine) error { return e.Teardown() })
 	case "hash-password":
 		err = hashPassword()
+	case "hash-initial-password": // installer-only bootstrap exception
+		err = readPasswordHash(api.HashInitialPassword)
 	case "version", "-v", "--version":
 		fmt.Println(api.Version)
 	case "help", "-h", "--help":
@@ -166,9 +169,17 @@ func serve(path string) error {
 	if err != nil {
 		return err
 	}
-	auth, err := api.NewAuth(cfg.AdminUser, cfg.AdminPasswordHash, key, cfg.TokenTTL)
+	passwordHash, err := api.LoadPasswordHash(cfg.DataDir, cfg.AdminPasswordHash)
 	if err != nil {
 		return err
+	}
+	auth, err := api.NewAuth(cfg.AdminUser, passwordHash, key, cfg.TokenTTL)
+	if err != nil {
+		return err
+	}
+	auth.SetPasswordDir(cfg.DataDir)
+	if bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte("admin")) == nil {
+		log.Warn("default administrator password is active; change it immediately via POST /api/v1/auth/password")
 	}
 	eng, err := buildEngine(cfg, log)
 	if err != nil {
@@ -247,7 +258,9 @@ func summarize(log *slog.Logger, r sysopt.Report) {
 		"unsupported", count["unsupported"], "failed", count["failed"])
 }
 
-func hashPassword() error {
+func hashPassword() error { return readPasswordHash(api.HashPassword) }
+
+func readPasswordHash(hash func(string) (string, error)) error {
 	var pw string
 	if term.IsTerminal(int(os.Stdin.Fd())) {
 		fmt.Fprint(os.Stderr, "Password: ")
@@ -264,7 +277,7 @@ func hashPassword() error {
 		}
 		pw = strings.TrimRight(line, "\r\n")
 	}
-	h, err := api.HashPassword(pw)
+	h, err := hash(pw)
 	if err != nil {
 		return err
 	}

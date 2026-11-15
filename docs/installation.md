@@ -19,7 +19,7 @@ Ringkasan langkah ada di [README utama](../README.md#instalasi-linux-fresh). Dok
 | `--api ADDR:PORT` | alamat listen REST API | `127.0.0.1:8080` |
 | `--endpoint HOST` | IP/hostname publik di config peer; `auto` = deteksi saat runtime | `auto` |
 | `--admin-user NAME` | username admin API | `admin` |
-| `--admin-password PW` | password admin (min. 8 karakter). Kalau dikosongkan, ditanyakan saat install, atau dibuat acak di mode `--yes` | – |
+| `--admin-password PW` | password admin (min. 8 karakter); fresh install tanpa password memakai bootstrap `admin` (segera ganti), reinstall mempertahankan password | – |
 | `--tune` / `--no-tune` | tuning kernel + NIC saat install dan setiap service start | `--tune` |
 | `--mss mtu\|pmtu` | mode clamp TCP MSS | `mtu` (MSS = MTU − 40) |
 | `--yes`, `-y` | non-interaktif; nilai yang tidak diberikan memakai default/nilai lama | – |
@@ -88,7 +88,9 @@ govpn-wg hash-password                             baca password dari stdin, cet
 govpn-wg version
 ```
 
-Ganti password admin:
+Ganti password admin melalui [POST /auth/password](api/auth.md) (disarankan). Hash API tersimpan di `GOVPN_DATA_DIR/admin-password.hash` dan mengalahkan hash env. Untuk reset manual, stop service dan hapus override tersebut setelah mengganti hash env, lalu restart.
+
+Reset hash env:
 
 ```bash
 HASH=$(govpn-wg hash-password)        # ketik password baru

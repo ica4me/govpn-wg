@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
 	"fmt"
@@ -18,13 +19,20 @@ import (
 
 const issuer = "govpn-wg"
 
+func passwordVersion(hash []byte) string {
+	v := sha256.Sum256(hash)
+	return fmt.Sprintf("%x", v[:])
+}
+
 // Auth issues and verifies HS256 JWTs for the single admin account.
 type Auth struct {
-	user    string
-	hash    []byte
-	key     []byte
-	ttl     time.Duration
-	limiter *limiter
+	mu          sync.RWMutex
+	passwordDir string
+	user        string
+	hash        []byte
+	key         []byte
+	ttl         time.Duration
+	limiter     *limiter
 }
 
 // LoadSigningKey reads or creates a 64-byte HMAC key (mode 0600).
@@ -70,6 +78,9 @@ func LoadSigningKey(dir string) ([]byte, error) {
 }
 
 func NewAuth(user, bcryptHash string, key []byte, ttl time.Duration) (*Auth, error) {
+	if len(key) < 32 || ttl <= 0 {
+		return nil, fmt.Errorf("signing key must be at least 32 bytes and token TTL positive")
+	}
 	if user == "" || bcryptHash == "" {
 		return nil, fmt.Errorf("admin user/password hash not configured (GOVPN_ADMIN_USER, GOVPN_ADMIN_PASSWORD_HASH)")
 	}
@@ -79,7 +90,17 @@ func NewAuth(user, bcryptHash string, key []byte, ttl time.Duration) (*Auth, err
 	return &Auth{user: user, hash: []byte(bcryptHash), key: key, ttl: ttl, limiter: newLimiter(10, time.Minute)}, nil
 }
 
-// HashPassword is used by `govpn-wg hash-password` and the installer.
+// HashInitialPassword permits the explicitly requested bootstrap default only.
+// Normal password changes must use HashPassword.
+func HashInitialPassword(pw string) (string, error) {
+	if pw != "admin" {
+		return HashPassword(pw)
+	}
+	b, err := bcrypt.GenerateFromPassword([]byte(pw), 12)
+	return string(b), err
+}
+
+// HashPassword is used by `govpn-wg hash-password` and password changes.
 func HashPassword(pw string) (string, error) {
 	if len(pw) < 8 {
 		return "", fmt.Errorf("password must be at least 8 characters")
@@ -90,6 +111,8 @@ func HashPassword(pw string) (string, error) {
 
 // Login checks credentials and returns a signed token.
 func (a *Auth) Login(user, password, remote string) (string, time.Time, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	if !a.limiter.allow(remote) {
 		return "", time.Time{}, errRateLimited
 	}
@@ -102,7 +125,7 @@ func (a *Auth) Login(user, password, remote string) (string, time.Time, error) {
 	a.limiter.reset(remote)
 	exp := time.Now().Add(a.ttl)
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Issuer: issuer, Subject: a.user, IssuedAt: jwt.NewNumericDate(time.Now()),
+		Issuer: issuer, Subject: a.user, ID: passwordVersion(a.hash), IssuedAt: jwt.NewNumericDate(time.Now()),
 		ExpiresAt: jwt.NewNumericDate(exp),
 	})
 	s, err := tok.SignedString(a.key)
@@ -111,13 +134,15 @@ func (a *Auth) Login(user, password, remote string) (string, time.Time, error) {
 
 // Verify validates a bearer token.
 func (a *Auth) Verify(token string) (string, error) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	claims := &jwt.RegisteredClaims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (any, error) { return a.key, nil },
 		jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer(issuer), jwt.WithExpirationRequired())
 	if err != nil {
 		return "", err
 	}
-	if claims.Subject != a.user {
+	if claims.Subject != a.user || claims.ID != passwordVersion(a.hash) {
 		return "", errors.New("unknown subject")
 	}
 	return claims.Subject, nil
@@ -162,6 +187,16 @@ func (l *limiter) allow(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	now := time.Now()
+	if _, exists := l.hits[key]; !exists && len(l.hits) >= 10000 {
+		for k, ts := range l.hits {
+			if len(ts) == 0 || now.Sub(ts[len(ts)-1]) >= l.window {
+				delete(l.hits, k)
+			}
+		}
+		if len(l.hits) >= 10000 {
+			return false
+		}
+	}
 	var kept []time.Time
 	for _, t := range l.hits[key] {
 		if now.Sub(t) < l.window {

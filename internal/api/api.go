@@ -2,6 +2,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,7 @@ func (s *Server) Handler() http.Handler {
 	pub.HandleFunc("POST /api/v1/auth/login", s.login)
 
 	p := http.NewServeMux()
+	p.HandleFunc("POST /api/v1/auth/password", s.changePassword)
 	p.HandleFunc("GET /api/v1/system/status", s.status)
 	p.HandleFunc("POST /api/v1/system/tune", s.runTune)
 	p.HandleFunc("POST /api/v1/system/reconcile", s.reconcile)
@@ -64,6 +66,7 @@ func (s *Server) Handler() http.Handler {
 	protected := s.auth.middleware(p)
 	root := http.NewServeMux()
 	root.Handle("/api/v1/health", pub)
+	root.Handle("POST /api/v1/auth/password", protected)
 	root.Handle("/api/v1/auth/", pub)
 	root.Handle("/api/", protected)
 	return s.logRequests(securityHeaders(root))
@@ -130,7 +133,8 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(v); err != nil {
+	var raw json.RawMessage
+	if err := dec.Decode(&raw); err != nil {
 		if errors.Is(err, io.EOF) {
 			writeError(w, http.StatusBadRequest, "request body must be a JSON object")
 			return false
@@ -138,7 +142,17 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return false
 	}
-	if dec.More() {
+	if len(raw) == 0 || raw[0] != '{' {
+		writeError(w, http.StatusBadRequest, "request body must be a JSON object")
+		return false
+	}
+	obj := json.NewDecoder(bytes.NewReader(raw))
+	obj.DisallowUnknownFields()
+	if err := obj.Decode(v); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+		return false
+	}
+	if err := dec.Decode(new(any)); !errors.Is(err, io.EOF) {
 		writeError(w, http.StatusBadRequest, "trailing data after JSON object")
 		return false
 	}

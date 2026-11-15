@@ -38,7 +38,7 @@ Usage: sudo bash scripts/install.sh [options]
   --api ADDR:PORT        REST API listen address (default 127.0.0.1:8080)
   --endpoint HOST        public IP/hostname written into peer configs (default: auto)
   --admin-user NAME      API admin username (default admin)
-  --admin-password PW    API admin password (min 8 chars; prompted if omitted)
+  --admin-password PW    API admin password (min 8 chars; fresh default: admin)
   --tune | --no-tune     kernel + virtual NIC tuning (default: yes)
   --mss mtu|pmtu         MSS clamp mode (default mtu = MTU-40)
   --yes, -y              non-interactive, accept defaults for anything not given
@@ -168,7 +168,8 @@ if [ -z "$ADMIN_PASS" ] && [ "$YES" -eq 0 ]; then
       read -r -s -p 'API admin password (empty = keep current): ' ADMIN_PASS; echo
       [ -z "$ADMIN_PASS" ] && break
     else
-      read -r -s -p 'API admin password (min 8 chars): ' ADMIN_PASS; echo
+      read -r -s -p 'API admin password (empty = bootstrap default): ' ADMIN_PASS; echo
+      [ -z "$ADMIN_PASS" ] && break
     fi
     [ ${#ADMIN_PASS} -ge 8 ] || { warn 'too short'; ADMIN_PASS=''; continue; }
     read -r -s -p 'Repeat password: ' again; echo
@@ -176,12 +177,14 @@ if [ -z "$ADMIN_PASS" ] && [ "$YES" -eq 0 ]; then
     warn 'passwords differ'; ADMIN_PASS=''
   done
 fi
-GENERATED_PASS=''
 if [ -z "$ADMIN_PASS" ] && [ -z "$HASH" ]; then
-  ADMIN_PASS=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
-  GENERATED_PASS=$ADMIN_PASS
+  ADMIN_PASS=admin
 fi
-[ -z "$ADMIN_PASS" ] || [ ${#ADMIN_PASS} -ge 8 ] || die 'admin password must be at least 8 characters'
+if [ "$ADMIN_PASS" = admin ]; then
+  warn 'Bootstrap default password is active. Change it immediately via POST /api/v1/auth/password.'
+else
+  [ -z "$ADMIN_PASS" ] || [ ${#ADMIN_PASS} -ge 8 ] || die 'admin password must be at least 8 characters'
+fi
 
 tune_default=${A_TUNE:-$(old GOVPN_TUNE_ON_START 1)}
 ask_yn TUNE 'Run kernel + virtual NIC tuning (sysctl, BBR, ethtool) now and at every start?' "$tune_default"
@@ -237,7 +240,7 @@ install -m 755 "$SRC/scripts/uninstall.sh" "$PREFIX/uninstall.sh"
 ln -sf "$PREFIX/govpn-wg" /usr/local/bin/govpn-wg
 
 if [ -n "$ADMIN_PASS" ]; then
-  HASH=$(printf '%s\n' "$ADMIN_PASS" | "$PREFIX/govpn-wg" hash-password)
+  HASH=$(printf '%s\n' "$ADMIN_PASS" | "$PREFIX/govpn-wg" hash-initial-password)
 fi
 
 # ---------------------------------------------------------------- config
@@ -340,9 +343,6 @@ printf '  API        %s\n' "$api_url"
 printf '  Config     %s\n' "$CONF"
 printf '  State      %s\n' "$DATA"
 printf '  Admin      %s\n' "$ADMIN_USER"
-if [ -n "$GENERATED_PASS" ]; then
-  printf '  Password   %s%s%s  (generated, shown once)\n' "$c_bold" "$GENERATED_PASS" "$c_off"
-fi
 printf '  Open UDP   %s and up on the provider firewall\n\n' "$PORT"
 printf 'Try:\n  TOKEN=$(curl -s %s/api/v1/auth/login -d %s | sed -n %s)\n' \
   "$api_url" "'{\"username\":\"$ADMIN_USER\",\"password\":\"...\"}'" "'s/.*\"access_token\": *\"\\([^\"]*\\)\".*/\\1/p'"

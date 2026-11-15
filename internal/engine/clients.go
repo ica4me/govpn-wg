@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/netip"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/ica4me/govpn-wg/internal/config"
@@ -358,6 +359,16 @@ func (e *Engine) validate(st *config.State) error {
 			return conflict("UDP port %d used by %s and %s", g.Port, o, g.Iface)
 		}
 		ports[g.Port] = g.Iface
+	}
+	for _, n := range nets {
+		if !strings.HasPrefix(n.what, "tunnel ") {
+			continue
+		}
+		for _, h := range host {
+			if n.p.Overlaps(h) && n.p.Bits() <= h.Bits() {
+				return conflict("%s (%s) overlaps host network %s", n.p, n.what, h)
+			}
+		}
 	}
 	for i := range nets {
 		for j := i + 1; j < len(nets); j++ {
