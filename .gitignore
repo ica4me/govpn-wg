@@ -1,0 +1,10 @@
+/bin/
+*.env
+!wg.env.example
+state.json*
+jwt.key
+*.conf
+!docs/*.conf
+*.log
+.idea/
+.vscode/
