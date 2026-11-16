@@ -37,6 +37,7 @@ Usage:
   govpn-wg reconcile    [-config ...]                 apply persisted state once and exit
   govpn-wg teardown     [-config ...]                 remove all govpn-wg interfaces and rules
   govpn-wg hash-password                              read a password, print a bcrypt hash
+  govpn-wg reset-admin  [-config ...]                 forgot login: reset to admin / admin (then restart)
   govpn-wg version
 `
 
@@ -65,6 +66,8 @@ func main() {
 		err = hashPassword()
 	case "hash-initial-password": // installer-only bootstrap exception
 		err = readPasswordHash(api.HashInitialPassword)
+	case "reset-admin":
+		err = resetAdmin(*path)
 	case "version", "-v", "--version":
 		fmt.Println(api.Version)
 	case "help", "-h", "--help":
@@ -173,7 +176,11 @@ func serve(path string) error {
 	if err != nil {
 		return err
 	}
-	auth, err := api.NewAuth(cfg.AdminUser, passwordHash, key, cfg.TokenTTL)
+	adminUser, err := api.LoadAdminUser(cfg.DataDir, cfg.AdminUser)
+	if err != nil {
+		return err
+	}
+	auth, err := api.NewAuth(adminUser, passwordHash, key, cfg.TokenTTL)
 	if err != nil {
 		return err
 	}
@@ -284,5 +291,20 @@ func readPasswordHash(hash func(string) (string, error)) error {
 		return err
 	}
 	fmt.Println(h)
+	return nil
+}
+
+// resetAdmin restores the bootstrap admin/admin login for a forgotten account.
+func resetAdmin(path string) error {
+	cfg, err := config.Load(path)
+	if err != nil {
+		return err
+	}
+	if err := api.ResetAdmin(cfg.DataDir); err != nil {
+		return err
+	}
+	fmt.Println("Admin login reset to admin / admin.")
+	fmt.Println("Restart the service to apply it:  systemctl restart govpn-wg")
+	fmt.Println("Tunnels stay up. The next login must set a new username/password.")
 	return nil
 }

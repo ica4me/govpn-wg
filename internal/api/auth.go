@@ -163,7 +163,7 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
-		if a.RequiresPasswordChange() && !((r.Method == "POST" && r.URL.Path == "/api/v1/auth/password") || (r.Method == "GET" && r.URL.Path == "/api/v1/system/status")) {
+		if a.RequiresPasswordChange() && !bootstrapAllowed(r) {
 			writeJSON(w, http.StatusForbidden, map[string]any{"error": "password change required", "requires_password_change": true})
 			return
 		}
@@ -233,4 +233,15 @@ func (l *limiter) reset(key string) {
 	l.mu.Lock()
 	delete(l.hits, key)
 	l.mu.Unlock()
+}
+
+// bootstrapAllowed lists the only calls a bootstrap (admin/admin) token may make.
+func bootstrapAllowed(r *http.Request) bool {
+	switch {
+	case r.Method == "POST" && (r.URL.Path == "/api/v1/auth/password" || r.URL.Path == "/api/v1/auth/credentials"):
+		return true
+	case r.Method == "GET" && (r.URL.Path == "/api/v1/system/status" || r.URL.Path == "/api/v1/auth/me"):
+		return true
+	}
+	return false
 }

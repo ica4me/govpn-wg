@@ -50,6 +50,8 @@ func (s *Server) Handler() http.Handler {
 
 	p := http.NewServeMux()
 	p.HandleFunc("POST /api/v1/auth/password", s.changePassword)
+	p.HandleFunc("POST /api/v1/auth/credentials", s.changeCredentials)
+	p.HandleFunc("GET /api/v1/auth/me", s.me)
 	p.HandleFunc("GET /api/v1/system/status", s.status)
 	p.HandleFunc("POST /api/v1/system/tune", s.runTune)
 	p.HandleFunc("POST /api/v1/system/reconcile", s.reconcile)
@@ -77,6 +79,8 @@ func (s *Server) Handler() http.Handler {
 	root := http.NewServeMux()
 	root.Handle("/api/v1/health", pub)
 	root.Handle("POST /api/v1/auth/password", protected)
+	root.Handle("POST /api/v1/auth/credentials", protected)
+	root.Handle("GET /api/v1/auth/me", protected)
 	root.Handle("/api/v1/auth/", pub)
 	root.Handle("/api/", protected)
 	return s.logRequests(securityHeaders(s.boundRequests(root)))

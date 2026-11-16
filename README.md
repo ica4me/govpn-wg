@@ -13,6 +13,12 @@ Engine VPN WireGuard berbasis Go untuk Linux, dikendalikan lewat REST API (JSON 
 
 **Penyimpanan:** state sites, groups, dan clients masih menggunakan file JSON (`/var/lib/govpn/wg/state.json`), **belum SQLite maupun database SQL**. Kunci dan hash password disimpan sebagai file terpisah.
 
+## Topologi koneksi
+
+![Topologi koneksi GoVPN: UI, REST API, WireGuard hub, client, dan site](docs/images/topology.svg)
+
+UI bersifat opsional. Garis kontrol mengelola hub; trafik VPN lewat WireGuard. Default **split-tunnel**, akses antar-site dan LAN mengikuti izin yang dipilih.
+
 ## UI opsional
 
 Repo UI: **https://github.com/ica4me/govpn-wg-ui** — Go + Templ + HTMX + Tailwind CSS, dijalankan melalui Docker Compose pada server backend atau server terpisah.
@@ -115,6 +121,19 @@ API hanya listen di `127.0.0.1`. Dari komputer lain, akses lewat SSH tunnel:
 ssh -L 8080:127.0.0.1:8080 root@IP-SERVER
 # lalu buka http://127.0.0.1:8080 dari komputer sendiri
 ```
+
+### Lupa username atau password
+
+GoVPN hanya punya satu akun admin. Username dan password-nya bisa diganti di UI lewat menu **Account**, atau lewat API `POST /api/v1/auth/credentials`.
+
+Kalau lupa, reset di server backend:
+
+```bash
+sudo /opt/govpn/wg/govpn-wg reset-admin
+sudo systemctl restart govpn-wg
+```
+
+Login kembali menjadi **admin / admin**. Tunnel, site, dan client tidak tersentuh. Setelah login, kamu wajib mengganti password dulu (username boleh ikut diganti) sebelum bisa mengelola VPN.
 
 ### Mengubah pengaturan setelah install
 

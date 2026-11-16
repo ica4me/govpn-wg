@@ -9,7 +9,7 @@ Detail per modul:
 
 | Modul | Dokumen |
 |---|---|
-| Authentication / password change | [auth.md](auth.md) |
+| Authentication, ganti username/password, reset-admin | [auth.md](auth.md) |
 | Sistem (health, status, tune, reconcile) | [system.md](system.md) |
 | **VPN Hub — Site-to-Site** | [sites.md](sites.md) |
 | Group client | [groups.md](groups.md) |
@@ -23,6 +23,8 @@ Detail per modul:
 | GET | `/health` | – | cek service hidup |
 | POST | `/auth/login` | – | login, dapatkan token |
 | POST | `/auth/password` | ✔ | ganti password; cabut semua token |
+| POST | `/auth/credentials` | ✔ | ganti username dan/atau password; cabut semua token |
+| GET | `/auth/me` | ✔ | username admin aktif |
 | GET | `/system/status` | ✔ | status engine |
 | POST | `/system/tune` | ✔ | jalankan tuning kernel/NIC |
 | POST | `/system/reconcile` | ✔ | terapkan ulang state ke kernel |
