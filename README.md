@@ -1,6 +1,6 @@
 # GoVPN — WireGuard Engine (`govpn-wg`)
 
-Engine VPN WireGuard berbasis Go untuk Linux, dikendalikan lewat REST API (JSON + JWT). Tanpa UI. Gratis dan open source untuk pemakaian individu.
+Engine VPN WireGuard berbasis Go untuk Linux, dikendalikan lewat REST API (JSON + JWT). UI terpisah tersedia secara opsional. Gratis dan open source untuk pemakaian individu.
 
 - **VPN Hub / Site-to-Site** — tiap site (kantor/cabang) dapat interface WireGuard sendiri yang diberi nama dari nama site (`Kantor Pusat` → `wg-s-kantor-pus`).
 - **Client-to-Site** — client (laptop/HP) masuk ke *group*; satu group = satu interface (`wg-c-default`, …). Client bisa diizinkan ke satu atau banyak site, dan secara default boleh mengakses LAN di belakang server.
@@ -11,13 +11,25 @@ Engine VPN WireGuard berbasis Go untuk Linux, dikendalikan lewat REST API (JSON 
 - Engine tidak menambah, menghapus, atau mengganti default gateway server.
 - Perubahan lewat API diterapkan langsung tanpa restart interface.
 
+**Penyimpanan:** state sites, groups, dan clients masih menggunakan file JSON (`/var/lib/govpn/wg/state.json`), **belum SQLite maupun database SQL**. Kunci dan hash password disimpan sebagai file terpisah.
+
+## UI opsional
+
+Repo UI: **https://github.com/ica4me/govpn-wg-ui** — Go + Templ + HTMX + Tailwind CSS, dijalankan melalui Docker Compose pada server backend atau server terpisah.
+
+Instalasi UI **opsional**: seluruh operasi pengelolaan sudah tersedia melalui REST API. Lihat [daftar endpoint dan format API](docs/api/README.md), [autentikasi/password](docs/api/auth.md), serta dokumentasi request body untuk [sites](docs/api/sites.md), [groups](docs/api/groups.md), dan [clients](docs/api/clients.md). Contoh alur dan body JSON tersedia di [examples](docs/api/examples.md).
+
+[Screenshot UI](docs/ui.md) · [Instalasi UI](https://github.com/ica4me/govpn-wg-ui#readme)
+
 > Status: masih tahap pengujian. Lihat [docs/testing.md](docs/testing.md) sebelum dipakai di produksi.
 
 ---
 
 ## Instalasi (Linux fresh)
 
-Didukung: **Debian 12/13** dan **Ubuntu 22.04+**, kernel ≥ 5.6 (modul `wireguard`). Semua perintah dijalankan sebagai root.
+**Rekomendasi OS: Debian 13 Cloud**, untuk instalasi minimal yang ringan dan overhead rendah pada server tunnel. Kecepatan aktual tetap bergantung pada CPU, jaringan, dan konfigurasi VM.
+
+Target dukungan: **Debian 12/13** serta **Ubuntu 22.04, 24.04, dan 26.04**, kernel ≥ 5.6 dengan modul `wireguard`. Pengujian server nyata saat ini dilakukan pada Debian 13; versi OS lain belum seluruhnya diuji end-to-end. Semua perintah dijalankan sebagai root.
 
 ### 1. Update sistem
 
@@ -79,12 +91,12 @@ Opsi yang sering dipakai:
 | `--api ADDR:PORT` | alamat REST API | `127.0.0.1:8080` |
 | `--endpoint HOST` | IP/hostname publik yang ditulis ke config peer | otomatis |
 | `--admin-user NAME` | username admin API | `admin` |
-| `--admin-password PW` | password admin (minimal 8 karakter) | ditanya, atau dibuat acak |
+| `--admin-password PW` | password admin (minimal 8 karakter) | `admin` pada instalasi baru; hash lama dipertahankan |
 | `--no-tune` | lewati tuning kernel/NIC | tuning aktif |
 
 Semua opsi: `bash scripts/install.sh --help`, atau lihat [docs/installation.md](docs/installation.md).
 
-Di akhir instalasi, installer menampilkan alamat API dan admin. Kalau password dibuat otomatis, password **hanya ditampilkan sekali**, jadi langsung simpan.
+Instalasi baru memakai password bootstrap `admin` jika tidak ditentukan. Segera ganti melalui [API password](docs/api/auth.md) sebelum digunakan di produksi. Instalasi ulang mempertahankan password yang sudah disimpan.
 
 ### 6. Buka port UDP di firewall provider
 
