@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"syscall"
 	"time"
 
 	"github.com/ica4me/govpn-wg/internal/engine"
@@ -197,6 +198,12 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 // --- system ----------------------------------------------------------------
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
+	// Read Linux host uptime on each request; it must not reset with the service.
+	var info syscall.Sysinfo_t
+	if err := syscall.Sysinfo(&info); err != nil {
+		s.fail(w, fmt.Errorf("read host uptime: %w", err))
+		return
+	}
 	last, lastErr := s.eng.LastSync()
 	st := s.eng.Snapshot()
 	cfg := s.eng.Config()
@@ -218,7 +225,8 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]any{
 		"version": Version, "uptime_seconds": int(time.Since(s.start).Seconds()),
-		"endpoint": s.eng.Endpoint(), "public_interface": s.eng.PublicIf(),
+		"server_uptime_seconds": info.Uptime,
+		"endpoint":              s.eng.Endpoint(), "public_interface": s.eng.PublicIf(),
 		"server_lan": lan, "default_mtu": cfg.DefaultMTU, "base_port": cfg.BasePort, "mss_mode": cfg.MSSMode,
 		"sites": len(st.Sites), "sites_online": online, "groups": len(st.Groups),
 		"clients": len(st.Clients), "clients_online": clientsOnline,

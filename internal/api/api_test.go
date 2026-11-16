@@ -3,6 +3,7 @@ package api_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -80,6 +81,51 @@ func TestAuth(t *testing.T) {
 	do(t, srv, "", "POST", "/api/v1/auth/login", `{"username":"admin","password":"wrong"}`, 401)
 	do(t, srv, tok, "GET", "/api/v1/sites", "", 200)
 	do(t, srv, tok, "GET", "/api/v1/system/status", "", 200)
+}
+
+// Host uptime must come from the kernel, independently of this API instance.
+func TestStatusReportsHostAndServiceUptime(t *testing.T) {
+	readHostUptime := func() int64 {
+		t.Helper()
+		data, err := os.ReadFile("/proc/uptime")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var seconds float64
+		if _, err := fmt.Sscanf(string(data), "%f", &seconds); err != nil {
+			t.Fatal(err)
+		}
+		return int64(seconds)
+	}
+	before := readHostUptime()
+	started := time.Now()
+	srv, tok := setup(t)
+	do(t, srv, "", "GET", "/api/v1/system/status", "", 401)
+	body := do(t, srv, tok, "GET", "/api/v1/system/status", "", 200)
+	t.Logf("system/status response: %s", body)
+	after := readHostUptime()
+	var status map[string]json.RawMessage
+	if err := json.Unmarshal(body, &status); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"server_uptime_seconds", "uptime_seconds"} {
+		value, ok := status[field]
+		if !ok {
+			t.Fatalf("status missing %s: %s", field, body)
+		}
+		var seconds int64
+		if err := json.Unmarshal(value, &seconds); err != nil {
+			t.Fatalf("%s must be integer seconds: %s", field, value)
+		}
+		if field == "server_uptime_seconds" {
+			// sysinfo rounds up while /proc/uptime includes fractional seconds.
+			if seconds < before || seconds > after+1 {
+				t.Errorf("host uptime %d outside kernel bounds [%d, %d]", seconds, before, after+1)
+			}
+		} else if seconds < 0 || seconds > int64(time.Since(started).Seconds()) {
+			t.Errorf("service uptime %d does not match fresh API instance", seconds)
+		}
+	}
 }
 
 func TestFlow(t *testing.T) {
