@@ -26,13 +26,14 @@ func passwordVersion(hash []byte) string {
 
 // Auth issues and verifies HS256 JWTs for the single admin account.
 type Auth struct {
-	mu          sync.RWMutex
-	passwordDir string
-	user        string
-	hash        []byte
-	key         []byte
-	ttl         time.Duration
-	limiter     *limiter
+	mu                     sync.RWMutex
+	passwordDir            string
+	user                   string
+	hash                   []byte
+	key                    []byte
+	ttl                    time.Duration
+	limiter                *limiter
+	requiresPasswordChange bool
 }
 
 // LoadSigningKey reads or creates a 64-byte HMAC key (mode 0600).
@@ -87,7 +88,7 @@ func NewAuth(user, bcryptHash string, key []byte, ttl time.Duration) (*Auth, err
 	if _, err := bcrypt.Cost([]byte(bcryptHash)); err != nil {
 		return nil, fmt.Errorf("GOVPN_ADMIN_PASSWORD_HASH is not a bcrypt hash: %w", err)
 	}
-	return &Auth{user: user, hash: []byte(bcryptHash), key: key, ttl: ttl, limiter: newLimiter(10, time.Minute)}, nil
+	return &Auth{user: user, hash: []byte(bcryptHash), key: key, ttl: ttl, limiter: newLimiter(10, time.Minute), requiresPasswordChange: bcrypt.CompareHashAndPassword([]byte(bcryptHash), []byte("admin")) == nil}, nil
 }
 
 // HashInitialPassword permits the explicitly requested bootstrap default only.
@@ -162,8 +163,18 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "invalid or expired token")
 			return
 		}
+		if a.RequiresPasswordChange() && !((r.Method == "POST" && r.URL.Path == "/api/v1/auth/password") || (r.Method == "GET" && r.URL.Path == "/api/v1/system/status")) {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "password change required", "requires_password_change": true})
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (a *Auth) RequiresPasswordChange() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.requiresPasswordChange
 }
 
 var (

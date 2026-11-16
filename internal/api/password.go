@@ -52,6 +52,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !a.limiter.allow(remoteIP(r)) {
+		w.Header().Set("Retry-After", "60")
 		writeError(w, 429, errRateLimited.Error())
 		return
 	}
@@ -73,6 +74,7 @@ func (s *Server) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.hash = []byte(hash)
+	a.requiresPasswordChange = false
 	a.limiter.reset(remoteIP(r))
 	w.WriteHeader(http.StatusNoContent)
 }

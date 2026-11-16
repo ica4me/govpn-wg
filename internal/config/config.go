@@ -38,6 +38,7 @@ type Config struct {
 	AdminUser         string
 	AdminPasswordHash string // bcrypt
 	TokenTTL          time.Duration
+	RequestLimits     RequestLimits
 
 	Endpoint string // public IP/hostname written into peer configs; auto when empty
 	PublicIf string // egress interface for full tunnel; auto when empty
@@ -101,6 +102,9 @@ func Load(path string) (*Config, error) {
 		SysctlExtra:       map[string]string{},
 	}
 	var err error
+	if c.RequestLimits, err = loadRequestLimits(get); err != nil {
+		return nil, err
+	}
 	if c.BasePort, err = atoi(get("GOVPN_BASE_PORT", strconv.Itoa(DefaultBasePort))); err != nil {
 		return nil, fmt.Errorf("GOVPN_BASE_PORT: %w", err)
 	}

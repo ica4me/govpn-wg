@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ica4me/govpn-wg/internal/config"
 	"github.com/ica4me/govpn-wg/internal/engine"
 	"github.com/ica4me/govpn-wg/internal/generator"
 	"github.com/ica4me/govpn-wg/internal/sysopt"
@@ -22,15 +23,21 @@ import (
 var Version = "dev"
 
 type Server struct {
-	eng   *engine.Engine
-	auth  *Auth
-	log   *slog.Logger
-	tune  func() sysopt.Report
-	start time.Time
+	eng              *engine.Engine
+	auth             *Auth
+	log              *slog.Logger
+	tune             func() sysopt.Report
+	start            time.Time
+	limits           config.RequestLimits
+	budget           *requestBudget
+	requestSlots     chan struct{}
+	maintenanceSlots chan struct{}
 }
 
 func New(eng *engine.Engine, auth *Auth, log *slog.Logger, tune func() sysopt.Report) *Server {
-	return &Server{eng: eng, auth: auth, log: log, tune: tune, start: time.Now()}
+	s := &Server{eng: eng, auth: auth, log: log, tune: tune, start: time.Now()}
+	s.SetRequestLimits(config.DefaultRequestLimits())
+	return s
 }
 
 // Handler builds the router. Go 1.22+ ServeMux handles methods and wildcards.
@@ -64,13 +71,13 @@ func (s *Server) Handler() http.Handler {
 	p.HandleFunc("DELETE /api/v1/clients/{id}", s.deleteClient)
 	p.HandleFunc("GET /api/v1/clients/{id}/download/{kind}", s.downloadClient)
 
-	protected := s.auth.middleware(p)
+	protected := s.auth.middleware(s.protectRequests(p))
 	root := http.NewServeMux()
 	root.Handle("/api/v1/health", pub)
 	root.Handle("POST /api/v1/auth/password", protected)
 	root.Handle("/api/v1/auth/", pub)
 	root.Handle("/api/", protected)
-	return s.logRequests(securityHeaders(root))
+	return s.logRequests(securityHeaders(s.boundRequests(root)))
 }
 
 func securityHeaders(next http.Handler) http.Handler {
@@ -192,7 +199,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]any{"access_token": tok, "token_type": "Bearer", "expires_at": exp.UTC()})
+	writeJSON(w, 200, map[string]any{"access_token": tok, "token_type": "Bearer", "expires_at": exp.UTC(), "requires_password_change": s.auth.RequiresPasswordChange()})
 }
 
 // --- system ----------------------------------------------------------------

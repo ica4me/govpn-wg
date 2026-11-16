@@ -205,8 +205,10 @@ func serve(path string) error {
 	stop := make(chan struct{})
 	go eng.Loop(30*time.Second, stop)
 
+	apiServer := api.New(eng, auth, log, runTune)
+	apiServer.SetRequestLimits(cfg.RequestLimits)
 	srv := &http.Server{
-		Addr: cfg.Listen, Handler: api.New(eng, auth, log, runTune).Handler(),
+		Addr: cfg.Listen, Handler: apiServer.Handler(),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
 		WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 32 << 10,
 	}
