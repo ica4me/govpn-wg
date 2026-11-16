@@ -27,6 +27,13 @@ Instalasi UI **opsional**: seluruh operasi pengelolaan sudah tersedia melalui RE
 
 [Screenshot UI](docs/ui.md) · [Instalasi UI](https://github.com/ica4me/govpn-wg-ui#readme)
 
+### Screenshot UI
+
+![Login UI](docs/images/login.png)
+
+Screenshot halaman operasional ada di [galeri UI](docs/ui.md).
+
+
 > Status: masih tahap pengujian. Lihat [docs/testing.md](docs/testing.md) sebelum dipakai di produksi.
 
 ---
