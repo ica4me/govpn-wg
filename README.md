@@ -31,7 +31,9 @@ Instalasi UI **opsional**: seluruh operasi pengelolaan sudah tersedia melalui RE
 
 ![Login UI](docs/images/login.png)
 
-Screenshot halaman operasional ada di [galeri UI](docs/ui.md).
+![Dashboard UI terbaru](docs/images/ui/dashboard.png)
+
+Screenshot Sites, Clients, Groups, dan Maintenance terbaru ada di [galeri UI](docs/ui.md).
 
 
 > Status: masih tahap pengujian. Lihat [docs/testing.md](docs/testing.md) sebelum dipakai di produksi.
