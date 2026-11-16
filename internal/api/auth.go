@@ -139,7 +139,7 @@ func (a *Auth) Verify(token string) (string, error) {
 	defer a.mu.RUnlock()
 	claims := &jwt.RegisteredClaims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (any, error) { return a.key, nil },
-		jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer(issuer), jwt.WithExpirationRequired())
+		jwt.WithValidMethods([]string{"HS256"}), jwt.WithIssuer(issuer), jwt.WithExpirationRequired(), jwt.WithStrictDecoding())
 	if err != nil {
 		return "", err
 	}
