@@ -245,3 +245,14 @@ Script ini **tidak** mengubah default gateway atau DNS sistem pada mode split. U
 - **Split tunnel:** baris `DNS =` hanya ditulis kalau resolver-nya berada **di dalam** `allowed_ips`. Contohnya `192.168.10.53` di LAN site. DNS publik seperti `1.1.1.1` **tidak** ditulis. Alasannya, aplikasi WireGuard atau systemd-resolved akan menjadikan resolver itu DNS utama sistem, padahal alamatnya tidak lewat tunnel. Akibatnya resolusi nama di perangkat client gagal.
 - **Full tunnel:** semua DNS ditulis.
 - Kalau tidak ada DNS yang memenuhi syarat, baris `DNS` dihilangkan dan client memakai DNS aslinya.
+
+## Nama file unduhan
+
+Sejak v1.5.0, semua unduhan memakai `Content-Disposition: attachment` dengan `filename` dan `filename*` (RFC 5987), serta `X-Content-Type-Options: nosniff`. Profil WireGuard dikirim sebagai `application/octet-stream`, jadi browser menyimpannya sebagai `.conf`, bukan `.conf.txt`.
+
+| Unduhan | Nama file |
+|---|---|
+| Client `conf` (Windows / macOS / mobile) | `<id>.conf` |
+| Client `linux` | `config-<id>.sh` |
+| Site `conf` / `windows` | `site-<id>.conf` |
+| Site `linux` | `install-site-<id>.sh` |

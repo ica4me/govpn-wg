@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"syscall"
 	"time"
 
@@ -167,11 +169,32 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
+// attachment writes a download response. The filename is sent twice: a quoted
+// ASCII form for old clients and an RFC 5987 form for modern browsers, so the
+// exact extension (.conf / .sh) is preserved instead of being derived from the
+// content type.
 func attachment(w http.ResponseWriter, name, ctype, body string) {
+	name = downloadName(name)
 	w.Header().Set("Content-Type", ctype)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q; filename*=UTF-8''%s", name, url.PathEscape(name)))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, body)
+}
+
+// downloadName strips characters that would break or split the header value.
+func downloadName(name string) string {
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || r == '"' || r == '\\' || r == '/' {
+			return -1
+		}
+		return r
+	}, name)
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "govpn.conf"
+	}
+	return name
 }
 
 // --- public ----------------------------------------------------------------
@@ -327,7 +350,7 @@ func (s *Server) downloadSite(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		attachment(w, "site-"+p.FileName+".conf", "text/plain; charset=utf-8", text)
+		attachment(w, "site-"+p.FileName+".conf", "application/octet-stream", text)
 	default:
 		writeError(w, http.StatusNotFound, "download kind must be linux or windows")
 	}
@@ -447,7 +470,7 @@ func (s *Server) downloadClient(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		attachment(w, p.FileName+".conf", "text/plain; charset=utf-8", text)
+		attachment(w, p.FileName+".conf", "application/octet-stream", text)
 	case "qr":
 		text, err := generator.Conf(p)
 		if err != nil {
@@ -460,7 +483,7 @@ func (s *Server) downloadClient(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "image/png")
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s.png"`, p.FileName))
+		w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=%q", downloadName(p.FileName)+".png"))
 		_, _ = w.Write(png)
 	default:
 		writeError(w, http.StatusNotFound, "download kind must be linux, conf or qr")
