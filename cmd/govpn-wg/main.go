@@ -29,6 +29,28 @@ import (
 	"github.com/ica4me/govpn-wg/internal/wireguard"
 )
 
+// listenAll binds every comma-separated GOVPN_LISTEN address. Non-loopback
+// addresses (e.g. a Docker bridge gateway) use IP_FREEBIND so the API starts
+// at boot even before Docker has created that bridge; nothing is reachable
+// on it until the interface exists. On any error all opened sockets close.
+func listenAll(spec string) ([]net.Listener, error) {
+	var out []net.Listener
+	for _, addr := range config.SplitListen(spec) {
+		ln, err := listenTCP(addr)
+		if err != nil {
+			for _, l := range out {
+				l.Close()
+			}
+			return nil, fmt.Errorf("listen %s: %w", addr, err)
+		}
+		out = append(out, ln)
+	}
+	if len(out) == 0 {
+		return nil, errors.New("GOVPN_LISTEN is empty")
+	}
+	return out, nil
+}
+
 const usage = `GoVPN (WireGuard Engine) %s
 
 Usage:
@@ -219,11 +241,13 @@ func serve(path string) error {
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
 		WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second, MaxHeaderBytes: 32 << 10,
 	}
-	ln, err := net.Listen("tcp", cfg.Listen)
+	lns, err := listenAll(cfg.Listen)
 	if err != nil {
 		return err
 	}
-	log.Info("api listening", "addr", ln.Addr().String(), "version", api.Version)
+	for _, ln := range lns {
+		log.Info("api listening", "addr", ln.Addr().String(), "version", api.Version)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -237,8 +261,10 @@ func serve(path string) error {
 			}
 		}
 	}()
-	errc := make(chan error, 1)
-	go func() { errc <- srv.Serve(ln) }()
+	errc := make(chan error, len(lns))
+	for _, ln := range lns {
+		go func(ln net.Listener) { errc <- srv.Serve(ln) }(ln)
+	}
 	select {
 	case <-ctx.Done():
 	case err := <-errc:

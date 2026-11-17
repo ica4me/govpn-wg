@@ -55,7 +55,7 @@ Format `KEY=VALUE`. Setelah diubah, jalankan `systemctl restart govpn-wg`. Resta
 
 | Variabel | Default | Keterangan |
 |---|---|---|
-| `GOVPN_LISTEN` | `127.0.0.1:8080` | alamat REST API (HTTP, tanpa TLS) |
+| `GOVPN_LISTEN` | `127.0.0.1:8080` | alamat REST API (HTTP, tanpa TLS). Bisa 1–4 alamat dipisah koma, mis. `127.0.0.1:8080,172.18.0.1:8080` agar UI di jaringan bridge Docker bisa menjangkau API. `0.0.0.0` ditolak. Alamat non-loopback memakai `IP_FREEBIND`, jadi service tetap start walau bridge Docker belum ada saat boot. |
 | `GOVPN_DATA_DIR` | `/var/lib/govpn/wg` | `state.json`, `jwt.key` |
 | `GOVPN_LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
 | `GOVPN_ADMIN_USER` | `admin` | username admin |

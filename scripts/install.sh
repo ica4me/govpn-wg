@@ -115,7 +115,13 @@ valid_cidrs() {
     [[ $c =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/([0-9]|[12][0-9]|3[0-2])$ ]] || return 1
   done
 }
-valid_listen() { [[ $1 =~ ^([0-9.]+|\[[0-9a-fA-F:]+\]|localhost):[0-9]+$ ]] && valid_port "${1##*:}"; }
+valid_listen() {
+  local a; [ -n "$1" ] || return 1
+  IFS=',' read -ra _l <<<"$1"
+  for a in "${_l[@]}"; do
+    [[ $a =~ ^([0-9.]+|localhost):[0-9]+$ ]] && [ "${a%%:*}" != 0.0.0.0 ] && valid_port "${a##*:}" || return 1
+  done
+}
 
 # ---------------------------------------------------------------- detection
 PUB_IF=$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* dev \([^ ]*\).*/\1/p' | head -n1)
@@ -331,7 +337,7 @@ systemctl daemon-reload
 systemctl enable govpn-wg.service >/dev/null 2>&1
 systemctl restart govpn-wg.service
 
-api_url="http://$LISTEN"
+api_url="http://${LISTEN%%,*}"
 for _ in $(seq 1 30); do
   curl -fsS "$api_url/api/v1/health" >/dev/null 2>&1 && break
   sleep 1

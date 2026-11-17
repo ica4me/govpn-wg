@@ -12,7 +12,7 @@ func TestServeFailsBeforeListenOnInitialApplyFailure(t *testing.T) {
 	t.Setenv("GOVPN_DATA_DIR", dir)
 	t.Setenv("GOVPN_DRY_RUN", "1")
 	t.Setenv("GOVPN_TUNE_ON_START", "0")
-	t.Setenv("GOVPN_LISTEN", "invalid-listen-address")
+	t.Setenv("GOVPN_LISTEN", "127.0.0.1:1")
 	hash, err := bcrypt.GenerateFromPassword([]byte("test-password"), bcrypt.MinCost)
 	if err != nil {
 		t.Fatal(err)

@@ -172,6 +172,9 @@ func (c *Config) Validate() error {
 	if c.Endpoint != "" && !ValidHost(c.Endpoint) {
 		return fmt.Errorf("GOVPN_ENDPOINT must be an IP or hostname")
 	}
+	if err := ValidListen(c.Listen); err != nil {
+		return fmt.Errorf("GOVPN_LISTEN: %w", err)
+	}
 	if !filepath.IsAbs(c.DataDir) {
 		return fmt.Errorf("GOVPN_DATA_DIR must be absolute")
 	}

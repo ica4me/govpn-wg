@@ -82,3 +82,47 @@ func Slug(s string) string {
 	}
 	return out
 }
+
+// SplitListen splits a comma-separated GOVPN_LISTEN value.
+func SplitListen(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+// ValidListen accepts 1-4 IPv4 HOST:PORT addresses (or localhost:PORT).
+// Wildcard binds are refused: the API must never listen on every interface.
+func ValidListen(s string) error {
+	parts := SplitListen(s)
+	if len(parts) == 0 || len(parts) > 4 {
+		return fmt.Errorf("need 1-4 comma-separated HOST:PORT addresses")
+	}
+	seen := map[string]bool{}
+	for _, p := range parts {
+		if seen[p] {
+			return fmt.Errorf("%q listed twice", p)
+		}
+		seen[p] = true
+		if strings.HasPrefix(p, "localhost:") {
+			if _, err := netip.ParseAddrPort("127.0.0.1:" + strings.TrimPrefix(p, "localhost:")); err != nil {
+				return fmt.Errorf("%q: invalid port", p)
+			}
+			continue
+		}
+		ap, err := netip.ParseAddrPort(p)
+		if err != nil || ap.Port() == 0 {
+			return fmt.Errorf("%q is not HOST:PORT", p)
+		}
+		if !ap.Addr().Is4() {
+			return fmt.Errorf("%q: only IPv4 is supported", p)
+		}
+		if ap.Addr().IsUnspecified() {
+			return fmt.Errorf("%q: wildcard bind is not allowed, use a specific IP", p)
+		}
+	}
+	return nil
+}
