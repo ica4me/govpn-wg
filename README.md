@@ -42,9 +42,12 @@ Screenshot Sites, Clients, Groups, dan Maintenance terbaru ada di [galeri UI](do
 
 ## Instalasi (Linux fresh)
 
+> **Pemula:** mau backend + UI sekaligus dalam 1 VM? Ikuti [Panduan Cepat 1 VM](https://github.com/ica4me/govpn-wg-ui/blob/main/docs/quickstart-1-vm.md).
+
+
 **Rekomendasi OS: Debian 13 Cloud**, untuk instalasi minimal yang ringan dan overhead rendah pada server tunnel. Kecepatan aktual tetap bergantung pada CPU, jaringan, dan konfigurasi VM.
 
-Target dukungan: **Debian 12/13** serta **Ubuntu 22.04, 24.04, dan 26.04**, kernel ≥ 5.6 dengan modul `wireguard`. Pengujian server nyata saat ini dilakukan pada Debian 13; versi OS lain belum seluruhnya diuji end-to-end. Semua perintah dijalankan sebagai root.
+Target dukungan: **Debian 12/13** serta **Ubuntu 22.04, 24.04, dan 26.04**, kernel ≥ 5.6 dengan modul `wireguard`. Sudah diuji end-to-end pada **Debian 13** dan **Ubuntu 22.04** (VM kosong, langsung dari GitHub; lihat [hasil uji](docs/testing.md#uji-plug-and-play-dari-vm-kosong-ubuntu-2204)). Versi OS lain belum diuji end-to-end. Semua perintah dijalankan sebagai root.
 
 ### 1. Update sistem
 

@@ -90,10 +90,31 @@ Sebelum operasi interface pada host cloud, siapkan konsol out-of-band dan cadang
 | IPv6 gateway site full tunnel (`route.sh` hanya memasang policy IPv4) | belum |
 | Windows/mobile/QR pada perangkat nyata | belum |
 | Clamp MSS pada trafik nyata, PMTU, fragmentasi, throughput/beban | belum |
-| Reconcile interface terhapus, perubahan IP publik, timer/SIGHUP, reboot | belum; repair chain/jump sudah diuji terpisah dalam namespace |
+| Reconcile interface terhapus, perubahan IP publik, timer/SIGHUP | belum; repair chain/jump sudah diuji terpisah dalam namespace. Reboot sudah diuji (lihat uji plug-and-play) |
 | Docker, ufw, firewalld, variasi backend iptables | belum menyeluruh |
 | Install/uninstall/purge/reinstall serta variasi OS/arsitektur | belum menyeluruh |
 | Lolos pemblokiran VPN dengan port 3478 | tidak diklaim; bukan penyamaran STUN |
+
+## Uji plug-and-play dari VM kosong (Ubuntu 22.04)
+
+Tanggal uji: 18 November 2026. Hub-nya VM **Ubuntu 22.04.5 LTS** kosong (kernel 5.15, wireguard 1.0.0, 1 vCPU / 2 GB, OpenStack). Backend dan UI dipasang **langsung dari GitHub** mengikuti [Panduan Cepat 1 VM](https://github.com/ica4me/govpn-wg-ui/blob/main/docs/quickstart-1-vm.md) tanpa langkah tambahan. Peer (2 gateway site, masing-masing dengan 1 host LAN, plus 2 client) berjalan di network namespace pada mesin lain dan terhubung lewat internet ke IP publik hub.
+
+| Uji | Hasil |
+|---|---|
+| `install.sh --yes` di VM kosong (Go diunduh otomatis) | lolos, ±2 menit |
+| Build + start UI Docker (`daemon.json` tanpa bridge/iptables), akses publik `:8090` | lolos, ±2 menit; API `:8080` tidak terbuka ke publik |
+| Default route, ip rule, DNS hub sebelum/sesudah install backend, Docker, UI, pembuatan tunnel, reboot | **tidak berubah** |
+| Login pertama admin/admin → API manajemen ditolak (403) sampai password diganti; UI mengarahkan ke halaman Account | lolos |
+| Config site/client split tunnel (tanpa `0.0.0.0/0`); script Linux `bash -n` | lolos |
+| **Site-to-site**: host LAN site A ↔ host LAN site B (izin dua arah) | lolos, 0% loss |
+| **Client-to-site**: client → site A (diizinkan) | lolos |
+| Client → site B (tanpa izin; AllowedIPs client sengaja diperlebar) | **diblok hub** |
+| **Client-to-multisite**: satu config client → site A dan site B | lolos, 0% loss |
+| Client ke client lain di group yang sama | diblok |
+| Cabut izin site B lewat API, lalu kembalikan, tanpa reconnect client | blok seketika, lalu tersambung lagi |
+| Full tunnel: client mengubah sendiri `AllowedIPs = 0.0.0.0/0` | internet lewat hub (IP keluar = IP hub) |
+| Reboot hub | backend, UI, dan ketiga tunnel naik otomatis; seluruh uji konektivitas lolos lagi |
+| `reset-admin` + restart backend | login kembali admin/admin; tunnel tetap tersambung |
 
 ## 6. Prioritas pengujian berikutnya
 
