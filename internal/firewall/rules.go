@@ -30,6 +30,14 @@ const (
 	ChainMSS     = "GOVPN-MSS"
 )
 
+// ICMP echo-request pacing. Only type 8 is matched: neighbour discovery errors
+// (type 3 incl. fragmentation-needed, 11, 12) must never be dropped, because
+// path-MTU discovery and TCP depend on them.
+const (
+	ICMPRatePerSecond = 50
+	ICMPBurst         = 50
+)
+
 // NonPublic are destinations a full-tunnel peer may not reach unless granted
 // explicitly: RFC1918, CGNAT, loopback, link-local, documentation, multicast.
 var NonPublic = []string{
@@ -117,8 +125,17 @@ func (r Ruleset) Render() string {
 	// interface and is not affected.
 	for _, pat := range OwnedPatterns {
 		add(&in, "-A %s -i %s -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT", ChainInput, pat)
-		add(&in, "-A %s -i %s -p icmp -m icmp --icmp-type 8 -j ACCEPT", ChainInput, pat)
+		// Paced echo-request: excess falls through to the DROP below.
+		add(&in, "-A %s -i %s -p icmp -m icmp --icmp-type 8 -m limit --limit %d/second --limit-burst %d -j ACCEPT", ChainInput, pat, ICMPRatePerSecond, ICMPBurst)
 		add(&in, "-A %s -i %s -j DROP", ChainInput, pat)
+	}
+	// Public-side echo-request is paced too, but allowed pings RETURN to the
+	// host's own INPUT policy so this chain never grants access it did not
+	// have. Only type 8 is matched; ICMP errors (frag-needed, time-exceeded)
+	// stay untouched so path-MTU discovery keeps working.
+	if r.PublicIf != "" {
+		add(&in, "-A %s -i %s -p icmp -m icmp --icmp-type 8 -m limit --limit %d/second --limit-burst %d -j RETURN", ChainInput, r.PublicIf, ICMPRatePerSecond, ICMPBurst)
+		add(&in, "-A %s -i %s -p icmp -m icmp --icmp-type 8 -j DROP", ChainInput, r.PublicIf)
 	}
 	for _, it := range r.Ifaces {
 		for _, dir := range []string{"-o", "-i"} {

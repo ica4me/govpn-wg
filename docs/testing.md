@@ -49,7 +49,7 @@ Perilaku yang perlu diperhatikan pada kode saat ini:
 
 - `allow_all_subnets=false` dengan `exposed_subnets=[]` mengekspos **nol subnet**, bukan seluruh LAN. Daftar eksplisit tanpa flag `allow_all_subnets` memilih mode daftar terbatas.
 - `effectiveDNS` pada mode split hanya mempertahankan resolver yang berada di dalam AllowedIPs. Mode full mempertahankan semua DNS yang dikonfigurasi. Tanpa DNS efektif, artefak tidak berisi baris `DNS`, dan skrip Linux menghindari pemasangan shim resolver. Ini tidak membuktikan resolusi DNS end-to-end.
-- `GOVPN-IN` menerima RELATED/ESTABLISHED dan ICMP echo-request dari tunnel, lalu DROP trafik lainnya. Grant server LAN mengizinkan forwarding ke perangkat lain, **tidak membuka layanan lokal hub** seperti SSH/API/DNS, termasuk melalui IP LAN milik hub.
+- `GOVPN-IN` menerima RELATED/ESTABLISHED dan ICMP echo-request (dibatasi 50/detik) dari tunnel, lalu DROP trafik lainnya. Uji dengan flood ping: paket di atas limit harus masuk counter DROP, sementara `ping` normal tetap 0% loss. Grant server LAN mengizinkan forwarding ke perangkat lain, **tidak membuka layanan lokal hub** seperti SSH/API/DNS, termasuk melalui IP LAN milik hub.
 - Catch-all `wg-s+`/`wg-c+` di firewall tetap berlaku saat state kosong. Bukti penerapan ruleset di kernel tidak menggantikan pengujian paket.
 - Tuning bawaan tidak lagi menyalakan forwarding IPv6; forwarding IPv4 dan pengaturan `accept_ra=2` tetap ada. Nilai IPv6 lama atau override admin perlu diperiksa terpisah.
 

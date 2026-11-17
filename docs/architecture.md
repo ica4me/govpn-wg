@@ -92,6 +92,7 @@ Urutan aturan per interface:
 Catatan lain:
 - Izin bersifat satu arah dari pihak yang memulai koneksi. Balasannya lewat conntrack.
 - `GOVPN-IN`: dari tunnel ke hub sendiri hanya ping dan balasan koneksi yang diizinkan. SSH, API, dan layanan lokal hub tidak bisa diakses dari tunnel, termasuk oleh peer yang punya izin server LAN.
+- Ping dibatasi **50 paket/detik** (burst 50) untuk kedua sisi: echo-request dari peer tunnel dan dari internet ke IP publik hub. Hanya `icmp-type 8` yang dihitung; ICMP error (type 3 termasuk frag-needed, 11, 12) tidak pernah disentuh agar path-MTU dan TCP tetap jalan. Ping dari internet yang masih di dalam limit diteruskan kembali (`RETURN`) ke kebijakan INPUT host, jadi chain GoVPN tidak menambah izin baru; kelebihan limit di-DROP. SSH/TCP, DNS/UDP, dan WireGuard/UDP tidak terpengaruh.
 - Catch-all `wg-s+` / `wg-c+` DROP tetap aktif walaupun belum ada site/client.
 - MSS: `mtu` → MSS = MTU − 40; `pmtu` → `--clamp-mss-to-pmtu`.
 
