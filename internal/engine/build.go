@@ -55,7 +55,7 @@ func (e *Engine) build(st *config.State) ([]wireguard.IfaceSpec, firewall.Rulese
 	for _, s := range st.Sites {
 		sites[s.ID] = s
 	}
-	serverLAN := e.cfg.ServerLAN
+	serverLAN := e.ServerLAN()
 
 	for _, s := range st.Sites {
 		spec := wireguard.IfaceSpec{
@@ -181,7 +181,7 @@ func (e *Engine) SiteAllowedIPs(st *config.State, s *config.Site) []string {
 		}
 	}
 	if s.CanAccessServerLAN {
-		for _, p := range e.cfg.ServerLAN {
+		for _, p := range e.ServerLAN() {
 			set[p] = true
 		}
 	}
@@ -209,7 +209,7 @@ func (e *Engine) ClientAllowedIPs(st *config.State, c *config.Client) []string {
 		}
 	}
 	if c.AllowServerLAN {
-		for _, p := range e.cfg.ServerLAN {
+		for _, p := range e.ServerLAN() {
 			set[p] = true
 		}
 	}

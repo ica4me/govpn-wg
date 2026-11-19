@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"net/netip"
 	"regexp"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -89,7 +91,9 @@ type Engine struct {
 	mu       sync.Mutex // serializes mutations and kernel apply
 	pubMu    sync.RWMutex
 	publicIf string
+	publicIP netip.Addr
 	endpoint string
+	dropped  []string // server-LAN prefixes withheld because they cover the hub uplink
 	lastErr  string
 	lastSync time.Time
 }
@@ -125,8 +129,69 @@ func (e *Engine) refreshPublic() {
 		endpoint = addr.String()
 	}
 	e.pubMu.Lock()
-	e.publicIf, e.endpoint = pubIf, endpoint
+	cameOnline := e.publicIP != addr
+	e.publicIf, e.publicIP, e.endpoint = pubIf, addr, endpoint
 	e.pubMu.Unlock()
+	if cameOnline || addr.IsValid() {
+		e.noteWithheld(e.withheld())
+	}
+}
+
+// PublicAddr is the hub's own uplink address, when detection succeeded.
+func (e *Engine) PublicAddr() netip.Addr {
+	e.pubMu.RLock()
+	defer e.pubMu.RUnlock()
+	return e.publicIP
+}
+
+// withheld lists configured server-LAN prefixes that contain the hub's own
+// uplink address. Never hand those to a peer: a client that routes the hub's
+// public subnet into the tunnel sends its own HTTPS/SSH to that address through
+// WG, where GOVPN-IN drops it as a new inbound connection to the hub — the
+// browser then times out instead of using the normal internet path.
+func (e *Engine) withheld() []netip.Prefix {
+	pub := e.PublicAddr()
+	var out []netip.Prefix
+	for _, p := range e.cfg.ServerLAN {
+		if pub.IsValid() && p.Contains(pub) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// ServerLAN is the server-LAN list safe to export to peers.
+func (e *Engine) ServerLAN() []netip.Prefix {
+	skip := map[netip.Prefix]bool{}
+	for _, p := range e.withheld() {
+		skip[p] = true
+	}
+	out := make([]netip.Prefix, 0, len(e.cfg.ServerLAN))
+	for _, p := range e.cfg.ServerLAN {
+		if !skip[p] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// noteWithheld logs the exclusion once per distinct set, not on every reconcile.
+func (e *Engine) noteWithheld(drop []netip.Prefix) {
+	names := make([]string, len(drop))
+	for i, p := range drop {
+		names[i] = p.String()
+	}
+	sort.Strings(names)
+	key := strings.Join(names, ",")
+	e.pubMu.Lock()
+	changed := strings.Join(e.dropped, ",") != key
+	e.dropped = names
+	e.pubMu.Unlock()
+	if changed && key != "" {
+		e.log.Warn("server LAN overlaps the hub uplink; withheld from peer AllowedIPs and grants",
+			"prefixes", key, "public_ip", e.PublicAddr().String(),
+			"fix", "remove it from GOVPN_SERVER_LAN")
+	}
 }
 
 func (e *Engine) PublicIf() string {
